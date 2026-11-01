@@ -1,0 +1,12 @@
+services:
+  - type: worker
+    name: fitnes-bot-scheduler
+    env: docker
+    region: frankfurt
+    plan: free
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: BOT_TOKEN
+        value: 8752685286:AAGUTv_lS7tJHKCJ3Q7_WZipPi3NBvx0Vh8
+      - key: TIMEZONE
+        value: Asia/Tashkent

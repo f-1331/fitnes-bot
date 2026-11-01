@@ -1,0 +1,7 @@
+{
+  "$schema": "./node_modules/tgcloud-cron/schema.json",
+  "jobs": {
+    "morningReminder": { "schedule": "0 0 * * *", "args": { "type": "morning" } },
+    "eveningReminder": { "schedule": "0 16 * * *", "args": { "type": "evening" } }
+  }
+}
