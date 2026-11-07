@@ -53,7 +53,12 @@ export function mainKeyboard(isOwner = false, activeMode = 'user') {
       { text: "🍹 Detoks Ichimliklar" }
     ],
     [
-      { text: "👤 Profil & BMI" }
+      { text: "✨ Ideal Vazn Kalkulyatori" },
+      { text: "🎁 Yutuqlar & Medallar" }
+    ],
+    [
+      { text: "👤 Profil & BMI" },
+      { text: "👥 Do'stlarni taklif qilish" }
     ]
   ];
 
@@ -100,11 +105,83 @@ export function workoutsInline() {
   };
 }
 
-export function workoutDoneInline(key) {
+export function workoutDoneInline(key, exercises = []) {
+  const keyboard = [
+    [{ text: "📖 Barcha mashqlarni rasmli o'rganish ➡️", callback_data: `wo_step_${key}_0` }]
+  ];
+
+  const EX_NAMES = {
+    squats: "🦵 Squats (O'tirib-turish)",
+    plank: "🧱 Plank (Planka)",
+    vacuum: "🌀 Qorin vakuumi",
+    pushups: "💪 Push-ups (Otjimaniye)",
+    jumping_jacks: "⭐ Jumping Jacks",
+    mountain_climbers: "🧗 Tog'chilar",
+    glute_bridge: "🍑 Dumba ko'prigi",
+    donkey_kicks: "🐴 Donkey kicks",
+    russian_twists: "🌪 Russian twists",
+    leg_raises: "🔺 Oyoq ko'tarish",
+    wall_sit: "🪑 Devorga suyanish",
+    bicycle_crunch: "🚴 Velosiped press",
+    burpee: "🔥 Byorpi",
+    calf_raises: "🦶 Boldirlar",
+    side_plank: "📐 Yon planka",
+    dips: "🪑 Dips (Triseps)"
+  };
+
+  for (let i = 0; i < exercises.length; i += 2) {
+    const row = [];
+    const ex1 = exercises[i];
+    row.push({ text: `👁 ${EX_NAMES[ex1] || ex1}`, callback_data: `ex_view_${key}_${ex1}` });
+    if (i + 1 < exercises.length) {
+      const ex2 = exercises[i + 1];
+      row.push({ text: `👁 ${EX_NAMES[ex2] || ex2}`, callback_data: `ex_view_${key}_${ex2}` });
+    }
+    keyboard.push(row);
+  }
+
+  keyboard.push([
+    { text: "⏱ 45s Plank Taymeri", callback_data: "timer_plank" },
+    { text: "✅ Mashqni bajardim (+20 XP)", callback_data: `done_${key}` }
+  ]);
+  keyboard.push([{ text: "◀️ Mashg'ulotlar ro'yxatiga", callback_data: "wo_back" }]);
+
+  return { inline_keyboard: keyboard };
+}
+
+export function exerciseStepInline(workoutKey, exercises, currentIndex) {
+  const navRow = [];
+  if (currentIndex > 0) {
+    navRow.push({ text: "⬅️ Oldingi", callback_data: `wo_step_${workoutKey}_${currentIndex - 1}` });
+  }
+  if (currentIndex < exercises.length - 1) {
+    navRow.push({ text: "Keyingi ➡️", callback_data: `wo_step_${workoutKey}_${currentIndex + 1}` });
+  }
+
+  const keyboard = [];
+  if (navRow.length > 0) keyboard.push(navRow);
+
+  keyboard.push([
+    { text: "⏱ 30 soniya taymer", callback_data: "timer_quick_30" },
+    { text: "⏱ 45 soniya taymer", callback_data: "timer_quick_45" }
+  ]);
+  keyboard.push([
+    { text: "📋 To'liq ro'yxatga qaytish", callback_data: `wo_${workoutKey}` }
+  ]);
+
+  return { inline_keyboard: keyboard };
+}
+
+export function singleExerciseInline(workoutKey) {
   return {
     inline_keyboard: [
-      [{ text: "✅ Mashqni bajardim (+20 XP)", callback_data: `done_${key}` }],
-      [{ text: "◀️ Orqaga", callback_data: "wo_back" }]
+      [
+        { text: "⏱ 30 sek taymer", callback_data: "timer_quick_30" },
+        { text: "⏱ 60 sek taymer", callback_data: "timer_quick_60" }
+      ],
+      [
+        { text: "◀️ Mashg'ulotga qaytish", callback_data: `wo_${workoutKey || 'morning'}` }
+      ]
     ]
   };
 }
@@ -379,6 +456,49 @@ export function ownerResetConfirmInline() {
     inline_keyboard: [
       [{ text: "✅ Ha, profilimni tozalash (Reset)", callback_data: "owner_reset_confirm" }],
       [{ text: "❌ Bekor qilish", callback_data: "owner_reset_cancel" }]
+    ]
+  };
+}
+
+export function idealWeightInline() {
+  return {
+    inline_keyboard: [
+      [{ text: "📊 Ideal vaznimni to'liq hisoblash", callback_data: "calc_ideal_weight" }],
+      [{ text: "🔥 Taomlar va mashqlar mutanosibligi", callback_data: "cal_burn_guide" }],
+      [{ text: "🥗 7 Kunlik Fitnes Menyusi", callback_data: "diet_day_1" }]
+    ]
+  };
+}
+
+export function achievementsInline() {
+  return {
+    inline_keyboard: [
+      [{ text: "🏆 21 Kunlik Marafon topshiriqlari", callback_data: "chal_menu" }],
+      [{ text: "🥇 Liderlar reytingini ko'rish", callback_data: "leaderboard_show" }]
+    ]
+  };
+}
+
+export function shareBotInline(botUsername, userTgId) {
+  const refLink = `https://t.me/${botUsername || 'fitnesuzb_bot'}?start=ref_${userTgId}`;
+  const shareText = encodeURIComponent(`Salom! Men FitnesBot orqali vaznimni nazorat qilib, mashqlar qilyapman. Har kuni 05:00 va 21:00 da eslatadi, mashqlarni yosh bolaga ham tushunarli qilib o'rgatadi. Sen ham qo'shil va birga ozamiz! 🏃💪\n\n${refLink}`);
+  return {
+    inline_keyboard: [
+      [{ text: "🚀 Telegramda do'stga ulashish (+50 XP)", url: `https://t.me/share/url?url=${refLink}&text=${shareText}` }],
+      [{ text: "🏆 21 Kunlik Marafonga qo'shilish", callback_data: "chal_menu" }]
+    ]
+  };
+}
+
+export function quickTimerInline(seconds) {
+  return {
+    inline_keyboard: [
+      [
+        { text: "⏱ 30s", callback_data: "timer_quick_30" },
+        { text: "⏱ 45s", callback_data: "timer_quick_45" },
+        { text: "⏱ 60s", callback_data: "timer_quick_60" }
+      ],
+      [{ text: "◀️ Mashqlar bo'limiga", callback_data: "wo_back" }]
     ]
   };
 }

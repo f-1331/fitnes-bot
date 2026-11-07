@@ -20,7 +20,10 @@ import {
   leaderboardInline,
   statsOwnerChoiceInline,
   personalStatsInline,
-  weeklyDietMenuInline
+  weeklyDietMenuInline,
+  idealWeightInline,
+  achievementsInline,
+  shareBotInline
 } from '../lib/keyboards.js';
 import { CHALLENGE_DAYS } from '../lib/challenge.js';
 import { FOOD_DATABASE, FOOD_MAP, searchFood, calculateDailyCalorieNeed } from '../lib/calories_db.js';
@@ -531,6 +534,22 @@ export default async function (message, ctx) {
 
   // /start buyrug'i
   if (text.startsWith('/start')) {
+    if (text.includes('ref_')) {
+      const inviterId = parseInt(text.split('ref_')[1].trim(), 10);
+      if (inviterId && inviterId !== fromUser.id) {
+        const inviter = await db.select().from(users).where(eq(users.tgId, inviterId)).get();
+        if (inviter) {
+          await db.update(users).set({ xp: (inviter.xp || 0) + 50 }).where(eq(users.tgId, inviterId)).run();
+          try {
+            await api.sendMessage({
+              chat_id: inviterId,
+              text: `🎉 <b>Tabriklaymiz! Do'stingiz (${user.name}) sizning taklifingiz bilan FitnesBot'ga qo'shildi!</b>\nSizga <b>+50 XP Bonus</b> berildi! 🌟`,
+              parse_mode: 'HTML'
+            });
+          } catch (e) {}
+        }
+      }
+    }
     if (user.height > 0 && user.currentWeight > 0) {
       const { bmi, status } = calculateBmi(user.currentWeight, user.height);
       const toLose = (user.currentWeight - user.targetWeight).toFixed(1);
@@ -1233,6 +1252,101 @@ export default async function (message, ctx) {
       text: profileText,
       parse_mode: 'HTML',
       reply_markup: profileInline()
+    });
+    return;
+  }
+
+  if (text === "✨ Ideal Vazn Kalkulyatori") {
+    const h = user.height || 170;
+    const w = user.currentWeight || 70;
+    const isMale = (user.gender || 'erkak').toLowerCase().includes('erkak');
+    const idealW = isMale ? Math.round((h - 100) * 0.9) : Math.round((h - 100) * 0.85);
+    const minHealthy = Math.round(18.5 * Math.pow(h / 100, 2));
+    const maxHealthy = Math.round(24.9 * Math.pow(h / 100, 2));
+    const diff = parseFloat((w - idealW).toFixed(1));
+    const { bmi, status } = calculateBmi(w, h);
+
+    let statusAdvice = "";
+    if (diff > 0) {
+      statusAdvice = `⚠️ <b>Xulosa:</b> Sizda ~<b>${diff} kg</b> ortiqcha vazn mavjud. Botdagi ertalabki badantarbiya va 7 kunlik fitnes menyusi bilan 1 oyda 3-5 kg sog'lom ozishingiz mumkin!`;
+    } else if (diff < 0) {
+      statusAdvice = `ℹ️ <b>Xulosa:</b> Ideal vaznga yetish uchun yana <b>${Math.abs(diff)} kg</b> sog'lom mushak massasi to'plash tavsiya etiladi.`;
+    } else {
+      statusAdvice = `🎯 <b>Ajoyib!</b> Siz aynan o'z bo'yingizga mos ideal me'yordasiz!`;
+    }
+
+    const report = (
+      `⚖️ <b>SHAXSIY IDEAL VAZN & QOMAT TAHLILI</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `👤 Jins: <b>${user.gender || 'Kiritilmagan'}</b>\n` +
+      `📏 Bo'y: <b>${h} sm</b> | Hozirgi vazn: <b>${w} kg</b>\n\n` +
+      `🎯 <b>Siz uchun eng mukammal ideal vazn:</b> <b>${idealW} kg</b>\n` +
+      `🟢 <b>Sog'lom vazn chegarasi:</b> <b>${minHealthy} — ${maxHealthy} kg</b>\n` +
+      `📊 <b>Tana massasi indeksi (BMI):</b> <b>${bmi}</b> (${status})\n\n` +
+      `${statusAdvice}\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `<i>Quyidagi tugmalar orqali taomlarni yoqish formulasi bilan ham tanishishingiz mumkin: 👇</i>`
+    );
+
+    await api.sendMessage({
+      chat_id: chatId,
+      text: report,
+      parse_mode: 'HTML',
+      reply_markup: idealWeightInline()
+    });
+    return;
+  }
+
+  if (text === "🎁 Yutuqlar & Medallar") {
+    const xp = user.xp || 0;
+    const streak = user.streak || 0;
+    const hasWeight = (user.currentWeight || 0) < (user.startWeight || 999);
+
+    const m1 = "🥉 <b>«Birinchi Qadam»</b> — Profil to'liq yaratildi! (Olingan ✅)\n";
+    const m2 = xp >= 100 ? "🥈 <b>«Harakatdagi Sportchi»</b> — 100+ XP to'plandi! (Olingan ✅)\n" : "⚪ <b>«Harakatdagi Sportchi»</b> — 100 XP kerak (Hali qulflangan 🔒)\n";
+    const m3 = xp >= 500 ? "🥇 <b>«Fitnes Ustasi»</b> — 500+ XP to'plandi! (Olingan ✅)\n" : "⚪ <b>«Fitnes Ustasi»</b> — 500 XP kerak (Hali qulflangan 🔒)\n";
+    const m4 = streak >= 7 ? "🔥 <b>«Olovli Intizom»</b> — 7 kunlik buzilmas zanjir! (Olingan ✅)\n" : `⚪ <b>«Olovli Intizom»</b> — 7 kunlik zanjir kerak (Hozir: ${streak} kun 🔒)\n`;
+    const m5 = hasWeight ? "⚖️ <b>«G'olib»</b> — Birinchi vazn yo'qotildi! (Olingan ✅)\n" : "⚪ <b>«G'olib»</b> — Birinchi vazn tashlanganda ochiladi 🔒\n";
+    const m6 = xp >= 1000 ? "👑 <b>«Afsonaviy Chempion»</b> — 1000+ XP! (Olingan ✅)\n" : "⚪ <b>«Afsonaviy Chempion»</b> — 1000 XP kerak 🔒\n";
+
+    const achText = (
+      `🏆 <b>SIZNING YUTUQLARINGIZ VA MEDALLARINGIZ:</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `⭐ Jami tajriba: <b>${xp} XP</b>\n` +
+      `🔥 Kunlik seriya: <b>${streak} kun</b>\n\n` +
+      `${m1}${m2}${m3}${m4}${m5}${m6}\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `💡 <i>Har kuni mashqlarni bajaring, suv va vazningizni kiriting — yangi medallar avtomatik ochiladi!</i>`
+    );
+
+    await api.sendMessage({
+      chat_id: chatId,
+      text: achText,
+      parse_mode: 'HTML',
+      reply_markup: achievementsInline()
+    });
+    return;
+  }
+
+  if (text === "👥 Do'stlarni taklif qilish") {
+    const botUser = 'fitnesuzb_bot';
+    const refLink = `https://t.me/${botUser}?start=ref_${fromUser.id}`;
+    const inviteText = (
+      `👥 <b>DO'STLAR BILAN BIRGA OZISH!</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `Yolg'iz shug'ullanishdan ko'ra, do'stlar yoki yaqinlar bilan musobaqa qilib ozish <b>3 barobar osonroq va qiziqarliroq</b> kechadi!\n\n` +
+      `🎁 <b>Sizning shaxsiy taklif havolangiz:</b>\n` +
+      `<code>${refLink}</code>\n\n` +
+      `Har bir taklif qilgan do'stingiz uchun sizga ham, do'stingizga ham <b>+50 XP Bonus</b> beriladi!\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `<i>Do'stlaringizga yuborish uchun pastdagi tugmani bosing: 👇</i>`
+    );
+
+    await api.sendMessage({
+      chat_id: chatId,
+      text: inviteText,
+      parse_mode: 'HTML',
+      reply_markup: shareBotInline(botUser, fromUser.id)
     });
     return;
   }

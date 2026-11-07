@@ -1,7 +1,7 @@
 import { api, db } from 'sdk';
 import { eq } from 'sdk/db';
 import { users, waterLogs, workoutLogs, stepLogs, calorieLogs, measurementLogs, challengeLogs, weightLogs } from '../schema.js';
-import { WORKOUTS, DIET_TOPICS } from '../lib/workouts.js';
+import { WORKOUTS, DIET_TOPICS, formatExerciseDetail } from '../lib/workouts.js';
 import { FOOD_DATABASE, FOOD_MAP } from '../lib/calories_db.js';
 import { DETOX_DRINKS } from '../lib/drinks.js';
 import { CHALLENGE_DAYS } from '../lib/challenge.js';
@@ -18,6 +18,8 @@ import {
 import {
   workoutsInline,
   workoutDoneInline,
+  exerciseStepInline,
+  singleExerciseInline,
   waterInline,
   dietInline,
   caloriesMenuInline,
@@ -32,7 +34,11 @@ import {
   leaderboardInline,
   statsOwnerChoiceInline,
   personalStatsInline,
-  weeklyDietMenuInline
+  weeklyDietMenuInline,
+  idealWeightInline,
+  achievementsInline,
+  shareBotInline,
+  quickTimerInline
 } from '../lib/keyboards.js';
 
 export default async function (query, ctx) {
@@ -66,7 +72,77 @@ export default async function (query, ctx) {
     return;
   }
 
-  // 2. MASHG'ULOTLAR (BUGLAR TUZATILDI: workout.steps to'g'ri o'qiladi)
+  // 2. MASHG'ULOTLAR — BOSQICHMA-BOSQICH RASMLI QO'LLANMA
+  if (data.startsWith('wo_step_')) {
+    const parts = data.replace('wo_step_', '').split('_');
+    const index = parseInt(parts.pop(), 10) || 0;
+    const workoutKey = parts.join('_');
+    const workout = WORKOUTS[workoutKey];
+
+    if (workout && workout.exercises && workout.exercises[index]) {
+      const exKey = workout.exercises[index];
+      const detailText = formatExerciseDetail(exKey);
+
+      if (detailText) {
+        const header = (
+          `📍 <b>${workout.title}</b>\n` +
+          `🔹 Mashq: <b>${index + 1} / ${workout.exercises.length}</b>\n\n`
+        );
+
+        await api.editMessageText({
+          chat_id: chatId,
+          message_id: messageId,
+          text: header + detailText,
+          parse_mode: 'HTML',
+          reply_markup: exerciseStepInline(workoutKey, workout.exercises, index)
+        });
+        await api.answerCallbackQuery({ callback_query_id: queryId });
+        return;
+      }
+    }
+  }
+
+  // ALOHIDA MASHQNI KO'RISH
+  if (data.startsWith('ex_view_')) {
+    const parts = data.replace('ex_view_', '').split('_');
+    const exKey = parts.pop();
+    const workoutKey = parts.join('_');
+    const detailText = formatExerciseDetail(exKey);
+
+    if (detailText) {
+      await api.editMessageText({
+        chat_id: chatId,
+        message_id: messageId,
+        text: detailText,
+        parse_mode: 'HTML',
+        reply_markup: singleExerciseInline(workoutKey)
+      });
+      await api.answerCallbackQuery({ callback_query_id: queryId });
+      return;
+    }
+  }
+
+  // TEZKOR MASHQ TAYMERI (30s / 45s / 60s)
+  if (data.startsWith('timer_quick_')) {
+    const sec = parseInt(data.replace('timer_quick_', ''), 10) || 30;
+    const timerText = (
+      `⏱ <b>${sec} Sekundlik Mashq Taymeri</b>\n\n` +
+      `Tayyormisiz? 3.. 2.. 1.. <b>BOSHLANG!</b> 🔔\n\n` +
+      `Mashqni to'g'ri texnika bilan bajaring.\n` +
+      `Tugatgach, dam oling va keyingi mashqqa o'ting! 💪`
+    );
+    await api.editMessageText({
+      chat_id: chatId,
+      message_id: messageId,
+      text: timerText,
+      parse_mode: 'HTML',
+      reply_markup: quickTimerInline(sec)
+    });
+    await api.answerCallbackQuery({ callback_query_id: queryId, text: `${sec} sekundlik taymer!` });
+    return;
+  }
+
+  // MASHG'ULOT UMUMIY RO'YXATI
   if (data.startsWith('wo_') && !data.startsWith('wo_back')) {
     const key = data.replace('wo_', '');
     const workout = WORKOUTS[key];
@@ -79,6 +155,7 @@ export default async function (query, ctx) {
         `🔥 Sarflanadigan energiya: <b>${workout.calories}</b>\n\n` +
         `📝 <i>${workout.description}</i>\n\n` +
         `📋 <b>Mashqlar tartibi:</b>\n\n${exList}\n\n` +
+        `💡 <i>Pastdagi tugmalar orqali har bir mashqning qanday qilinishini rasmlar bilan, yosh bolaga ham tushunarli uslubda o'rganishingiz mumkin:</i>\n\n` +
         `${workout.tip}`
       );
 
@@ -87,7 +164,7 @@ export default async function (query, ctx) {
         message_id: messageId,
         text,
         parse_mode: 'HTML',
-        reply_markup: workoutDoneInline(key)
+        reply_markup: workoutDoneInline(key, workout.exercises || [])
       });
       await api.answerCallbackQuery({ callback_query_id: queryId });
       return;
@@ -692,6 +769,92 @@ export default async function (query, ctx) {
       await api.answerCallbackQuery({ callback_query_id: queryId });
       return;
     }
+  }
+
+  // IDEAL VAZN KALKULYATORI CALLBACK
+  if (data === 'calc_ideal_weight') {
+    const h = user?.height || 170;
+    const w = user?.currentWeight || 70;
+    const isMale = (user?.gender || 'erkak').toLowerCase().includes('erkak');
+    const idealW = isMale ? Math.round((h - 100) * 0.9) : Math.round((h - 100) * 0.85);
+    const minHealthy = Math.round(18.5 * Math.pow(h / 100, 2));
+    const maxHealthy = Math.round(24.9 * Math.pow(h / 100, 2));
+    const diff = parseFloat((w - idealW).toFixed(1));
+    const { bmi, status } = calculateBmi(w, h);
+
+    let analysisBadge = "";
+    if (diff > 0) {
+      analysisBadge = `⚠️ Ideal vaznga tushish uchun <b>${diff} kg</b> vazn yo'qotish tavsiya etiladi.`;
+    } else if (diff < 0) {
+      analysisBadge = `ℹ️ Ideal vaznga chiqish uchun <b>${Math.abs(diff)} kg</b> vazn olish tavsiya etiladi.`;
+    } else {
+      analysisBadge = `🎯 <b>Tabriklaymiz! Siz aynan o'zingizning ideal vazningizdasiz!</b>`;
+    }
+
+    const report = (
+      `⚖️ <b>SHAXSIY IDEAL VAZN TAHLILI</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `👤 Jinsingiz: <b>${user?.gender || 'Erkak'}</b>\n` +
+      `📏 Bo'yingiz: <b>${h} sm</b> | Hozirgi vazn: <b>${w} kg</b>\n\n` +
+      `🎯 <b>Siz uchun eng mukammal ideal vazn:</b> <b>${idealW} kg</b>\n` +
+      `🟢 <b>Sog'lom vazn oralig'i:</b> <b>${minHealthy} kg — ${maxHealthy} kg</b>\n` +
+      `📊 <b>Tana massasi indeksi (BMI):</b> <b>${bmi}</b> (${status})\n\n` +
+      `${analysisBadge}\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `💡 <i>Bu ko'rsatkich Jahon Sog'liqni Saqlash Tashkiloti (JSST) va Broca formulasi bo'yicha aniqlangan.</i>`
+    );
+
+    await api.editMessageText({
+      chat_id: chatId,
+      message_id: messageId,
+      text: report,
+      parse_mode: 'HTML',
+      reply_markup: idealWeightInline()
+    });
+    await api.answerCallbackQuery({ callback_query_id: queryId });
+    return;
+  }
+
+  // TAOMLAR VA MASHQ MUTANOSIBLIGI
+  if (data === 'cal_burn_guide') {
+    const guideText = (
+      `🔥 <b>Mashhur Taomlar va Ularni Yoqish Formulasi:</b>\n\n` +
+      `🥟 <b>1 ta Somsa (320 kkal):</b>\n` +
+      `• 🚶‍♂️ 45 daqiqa tez yurish YOKI\n` +
+      `• 🏃‍♂️ 25 daqiqa yugurish YOKI\n` +
+      `• 🦵 300 ta o'tirib-turish (Squats)\n\n` +
+      `🍚 <b>1 porsiya Osh (650 kkal):</b>\n` +
+      `• 🚶‍♂️ 1.5 soat faol yurish YOKI\n` +
+      `• 🚴‍♂️ 50 daqiqa velosiped haydash YOKI\n` +
+      `• 🧗 40 daqiqa HIIT mashg'ulot\n\n` +
+      `🍫 <b>1 ta Shokolad / Snickers (250 kkal):</b>\n` +
+      `• 🚶‍♂️ 35 daqiqa yurish YOKI\n` +
+      `• 🧱 5 daqiqa plank (oraliqlar bilan)\n\n` +
+      `🥤 <b>0.5L Gazli shirin ichimlik (210 kkal):</b>\n` +
+      `• 🚶‍♂️ 30 daqiqa tez qadam\n\n` +
+      `💡 <i>Xulosa: 5 daqiqada yeb qo'yilgan ortiqcha shirinlikni yoqish uchun kamida 40 daqiqa ter to'kish kerak!</i>`
+    );
+    await api.editMessageText({
+      chat_id: chatId,
+      message_id: messageId,
+      text: guideText,
+      parse_mode: 'HTML',
+      reply_markup: idealWeightInline()
+    });
+    await api.answerCallbackQuery({ callback_query_id: queryId });
+    return;
+  }
+
+  // REFERRAL HAVOLA NUSXALASH
+  if (data === 'copy_ref_link') {
+    const botUser = 'fitnesuzb_bot';
+    const link = `https://t.me/${botUser}?start=ref_${fromUser.id}`;
+    await api.answerCallbackQuery({
+      callback_query_id: queryId,
+      text: `Havolangiz:\n${link}\nDo'stlaringizga yuboring!`,
+      show_alert: true
+    });
+    return;
   }
 
   // 9. FITNES TAYMER VA PLANK
