@@ -38,7 +38,12 @@ import {
   idealWeightInline,
   achievementsInline,
   shareBotInline,
-  quickTimerInline
+  quickTimerInline,
+  adminManageInline,
+  globalResetConfirmInline,
+  userResetConfirmInline,
+  bodyFatInline,
+  profileInline
 } from '../lib/keyboards.js';
 
 export default async function (query, ctx) {
@@ -1217,6 +1222,306 @@ export default async function (query, ctx) {
       } catch (e) {}
       await api.answerCallbackQuery({ callback_query_id: queryId, text: `+${amount} XP muvaffaqiyatli berildi!` });
     }
+    return;
+  }
+
+  // MAQSADNI O'ZGARTIRISH PROMPT
+  if (data === 'target_prompt') {
+    await db.update(users).set({ step: 'target_input' }).where(eq(users.tgId, fromUser.id)).run();
+    await api.sendMessage({
+      chat_id: chatId,
+      text: "🎯 <b>Yangi maqsadli vazningiz necha kg?</b>\n<i>(Masalan: <code>70</code> yoki <code>68.5</code>)</i>\n\n<i>Bekor qilish: <code>/cancel</code></i>",
+      parse_mode: 'HTML'
+    });
+    await api.answerCallbackQuery({ callback_query_id: queryId });
+    return;
+  }
+
+  // FOYDALANUVCHI PROFILINI TOZALASH (USER RESET)
+  if (data === 'user_reset_ask') {
+    const warn = (
+      `⚠️ <b>Profilni qayta boshlash (Reset)</b>\n\n` +
+      `Siz barcha kiritilgan ma'lumotlaringizni tozalab, botni yangitdan boshlaysiz.\n` +
+      `Barcha vazn, suv va mashq tarixlari o'chiriladi.\n\n` +
+      `Haqiqatan ham profilingizni tozalamoqchimisiz?`
+    );
+    await api.sendMessage({
+      chat_id: chatId,
+      text: warn,
+      parse_mode: 'HTML',
+      reply_markup: userResetConfirmInline()
+    });
+    await api.answerCallbackQuery({ callback_query_id: queryId });
+    return;
+  }
+
+  if (data === 'user_reset_confirm') {
+    await db.delete(weightLogs).where(eq(weightLogs.tgId, fromUser.id)).run();
+    await db.delete(waterLogs).where(eq(waterLogs.tgId, fromUser.id)).run();
+    await db.delete(workoutLogs).where(eq(workoutLogs.tgId, fromUser.id)).run();
+    await db.delete(stepLogs).where(eq(stepLogs.tgId, fromUser.id)).run();
+    await db.delete(calorieLogs).where(eq(calorieLogs.tgId, fromUser.id)).run();
+    await db.delete(measurementLogs).where(eq(measurementLogs.tgId, fromUser.id)).run();
+    await db.delete(challengeLogs).where(eq(challengeLogs.tgId, fromUser.id)).run();
+
+    await db.update(users).set({
+      step: 'gender',
+      gender: 'none',
+      height: 0,
+      startWeight: 0,
+      currentWeight: 0,
+      targetWeight: 0,
+      xp: 0,
+      streak: 0,
+      waterGoalMl: 2000,
+      calorieGoal: 1800,
+      stepsGoal: 10000
+    }).where(eq(users.tgId, fromUser.id)).run();
+
+    await api.editMessageText({
+      chat_id: chatId,
+      message_id: messageId,
+      text: (
+        `🔄 <b>Profilingiz muvaffaqiyatli tozalandi!</b>\n\n` +
+        `Keling, barchasini yangitdan to'g'ri sozlaymiz.\n` +
+        `Sizga mos reja tuzishimiz uchun jinsingizni tanlang:`
+      ),
+      parse_mode: 'HTML',
+      reply_markup: genderInline()
+    });
+    await api.answerCallbackQuery({ callback_query_id: queryId, text: "Profil tozalandi!" });
+    return;
+  }
+
+  if (data === 'user_reset_cancel') {
+    await api.editMessageText({
+      chat_id: chatId,
+      message_id: messageId,
+      text: "✅ Profilni tozalash bekor qilindi.",
+      parse_mode: 'HTML'
+    });
+    await api.answerCallbackQuery({ callback_query_id: queryId });
+    return;
+  }
+
+  // GLOBAL RESET (BARCHA FOYDALANUVCHILARNI RESET QILISH - OWNER)
+  if (data === 'global_reset_confirm') {
+    const isOwner = (fromUser.id === 6707839718 || (fromUser.username && fromUser.username.toLowerCase() === 'fayzbek1331'));
+    if (!isOwner) {
+      await api.answerCallbackQuery({ callback_query_id: queryId, text: "Faqat Asosiy Owner uchun!", show_alert: true });
+      return;
+    }
+
+    await db.delete(weightLogs).run();
+    await db.delete(waterLogs).run();
+    await db.delete(workoutLogs).run();
+    await db.delete(stepLogs).run();
+    await db.delete(calorieLogs).run();
+    await db.delete(measurementLogs).run();
+    await db.delete(challengeLogs).run();
+
+    const all = await db.select().from(users).all();
+    for (const u of all) {
+      await db.update(users).set({
+        step: 'gender',
+        gender: 'none',
+        height: 0,
+        startWeight: 0,
+        currentWeight: 0,
+        targetWeight: 0,
+        xp: 0,
+        streak: 0,
+        waterGoalMl: 2000,
+        calorieGoal: 1800,
+        stepsGoal: 10000
+      }).where(eq(users.tgId, u.tgId)).run();
+    }
+
+    await api.editMessageText({
+      chat_id: chatId,
+      message_id: messageId,
+      text: (
+        `💥 <b>Barcha foydalanuvchilar ma'lumotlari muvaffaqiyatli tozalandi (Global Reset)!</b>\n\n` +
+        `Jami <b>${all.length} ta</b> foydalanuvchi profili nollashtirildi.\n` +
+        `Har bir foydalanuvchi endi botga kirganda qaytadan ro'yxatdan o'tadi.`
+      ),
+      parse_mode: 'HTML',
+      reply_markup: mainKeyboard(true, 'owner', false)
+    });
+    await api.answerCallbackQuery({ callback_query_id: queryId, text: "Barcha foydalanuvchilar tozalandi!", show_alert: true });
+    return;
+  }
+
+  if (data === 'global_reset_cancel') {
+    await api.editMessageText({
+      chat_id: chatId,
+      message_id: messageId,
+      text: "❌ Barchada botni reset qilish bekor qilindi.",
+      parse_mode: 'HTML'
+    });
+    await api.answerCallbackQuery({ callback_query_id: queryId });
+    return;
+  }
+
+  // ADMIN BOSHQARUVI CALLBACKS
+  if (data === 'admin_add_prompt') {
+    const isOwner = (fromUser.id === 6707839718 || (fromUser.username && fromUser.username.toLowerCase() === 'fayzbek1331'));
+    if (!isOwner) {
+      await api.answerCallbackQuery({ callback_query_id: queryId, text: "Faqat Asosiy Owner uchun!", show_alert: true });
+      return;
+    }
+    await db.update(users).set({ step: 'owner_add_admin' }).where(eq(users.tgId, fromUser.id)).run();
+    await api.sendMessage({
+      chat_id: chatId,
+      text: (
+        `👮 <b>Yangi Admin Qo'shish:</b>\n\n` +
+        `Admin qilmoqchi bo'lgan shaxsning Telegram ID yoki @username'ini yuboring.\n` +
+        `<i>(U odam avval botga kirib /start bosgan bo'lishi zarur)</i>\n\n` +
+        `<i>Bekor qilish uchun: <code>/cancel</code></i>`
+      ),
+      parse_mode: 'HTML'
+    });
+    await api.answerCallbackQuery({ callback_query_id: queryId });
+    return;
+  }
+
+  if (data === 'admin_remove_prompt') {
+    const isOwner = (fromUser.id === 6707839718 || (fromUser.username && fromUser.username.toLowerCase() === 'fayzbek1331'));
+    if (!isOwner) {
+      await api.answerCallbackQuery({ callback_query_id: queryId, text: "Faqat Asosiy Owner uchun!", show_alert: true });
+      return;
+    }
+    await db.update(users).set({ step: 'owner_remove_admin' }).where(eq(users.tgId, fromUser.id)).run();
+    await api.sendMessage({
+      chat_id: chatId,
+      text: (
+        `➖ <b>Adminlikdan chiqarish:</b>\n\n` +
+        `Adminlikdan olmoqchi bo'lgan foydalanuvchining ID yoki @username'ini yuboring.\n\n` +
+        `<i>Bekor qilish uchun: <code>/cancel</code></i>`
+      ),
+      parse_mode: 'HTML'
+    });
+    await api.answerCallbackQuery({ callback_query_id: queryId });
+    return;
+  }
+
+  if (data === 'admin_list_show') {
+    const adminList = await db.select().from(users).where(eq(users.role, 'admin')).all();
+    let textOut = `👮 <b>Adminlar Ro'yxati:</b>\n\n`;
+    textOut += `👑 <b>Asosiy Egasi (Owner):</b> @fayzbek1331 (ID: <code>6707839718</code>)\n\n`;
+    if (adminList.length > 0) {
+      adminList.forEach((a, idx) => {
+        textOut += `${idx + 1}. <b>${a.name}</b> (@${a.username || "yo'q"}) | ID: <code>${a.tgId}</code>\n`;
+      });
+    } else {
+      textOut += `<i>Hozircha qo'shimcha adminlar yo'q.</i>\n`;
+    }
+    await api.sendMessage({
+      chat_id: chatId,
+      text: textOut,
+      parse_mode: 'HTML',
+      reply_markup: adminManageInline()
+    });
+    await api.answerCallbackQuery({ callback_query_id: queryId });
+    return;
+  }
+
+  if (data === 'admin_back_owner') {
+    await api.sendMessage({
+      chat_id: chatId,
+      text: "👑 Boshqaruv paneli menyusiga qaytdingiz:",
+      reply_markup: mainKeyboard(true, 'owner', false)
+    });
+    await api.answerCallbackQuery({ callback_query_id: queryId });
+    return;
+  }
+
+  // TANA YOG'I FOIZI (BODY FAT %) & BMR KALKULYATORLARI
+  if (data === 'calc_bodyfat_calc') {
+    const w = user?.currentWeight || 70;
+    const h = user?.height || 170;
+    const isMale = user?.gender !== 'ayol';
+    const bmi = w / ((h / 100) * (h / 100));
+
+    // Deurenberg formulasi bo'yicha tana yog'i foizi
+    const bodyFat = isMale ? (1.20 * bmi + 0.23 * 25 - 16.2) : (1.20 * bmi + 0.23 * 25 - 5.4);
+    const bfVal = Math.max(5, Math.min(50, bodyFat)).toFixed(1);
+
+    let status = "";
+    if (isMale) {
+      if (bfVal < 10) status = "Sportchi (Juda quruq va muskulli) 🏆";
+      else if (bfVal < 18) status = "Optimal va sog'lom qomat 🌟";
+      else if (bfVal < 25) status = "O'rtacha me'yoriy daraja 👍";
+      else status = "Ortiqcha yog' to'plangan (Kardio tavsiya etiladi) ⚠️";
+    } else {
+      if (bfVal < 17) status = "Sportchi (Go'zal relyef) 🏆";
+      else if (bfVal < 24) status = "Optimal va nozik qomat 🌟";
+      else if (bfVal < 31) status = "O'rtacha sog'lom daraja 👍";
+      else status = "Ortiqcha yog' to'plangan (Yog' yoqish zarur) ⚠️";
+    }
+
+    const bfText = (
+      `🩺 <b>Tana Yog'i Foizi Tahlili (Body Fat %):</b>\n\n` +
+      `• Vazningiz: <b>${w} kg</b> | Bo'yingiz: <b>${h} sm</b>\n` +
+      `• Tana massasi indeksi (BMI): <b>${bmi.toFixed(1)}</b>\n` +
+      `• Taxminiy tana yog'i: <b>~${bfVal}%</b>\n` +
+      `• Baholash: <b>${status}</b>\n\n` +
+      `💡 <b>Maslahat:</b> Yog' foizini kamaytirish uchun har kuni kechki yog' yoqish mashqlarini bajaring va ratsionda uglevodlarni me'yorlashtiring!`
+    );
+
+    await api.sendMessage({
+      chat_id: chatId,
+      text: bfText,
+      parse_mode: 'HTML',
+      reply_markup: bodyFatInline()
+    });
+    await api.answerCallbackQuery({ callback_query_id: queryId });
+    return;
+  }
+
+  if (data === 'calc_bmr_show') {
+    const w = user?.currentWeight || 70;
+    const h = user?.height || 170;
+    const isMale = user?.gender !== 'ayol';
+    const bmr = Math.round(isMale ? (10 * w + 6.25 * h - 5 * 25 + 5) : (10 * w + 6.25 * h - 5 * 25 - 161));
+    const maintainCal = Math.round(bmr * 1.375);
+    const loseCal = maintainCal - 400;
+
+    const bmrText = (
+      `🔥 <b>BMR (Bazal Metabolizm) & Kaloriya Normasi:</b>\n\n` +
+      `• Tana tinch holatda sarflaydigan energiya: <b>${bmr} kkal / kun</b>\n` +
+      `• Hozirgi vaznni ushlab turish uchun: <b>${maintainCal} kkal</b>\n` +
+      `• Haftasiga 0.5 - 1 kg sog'lom ozish uchun: <b>${loseCal} kkal</b>\n\n` +
+      `🎯 <i>Kunlik taomnomangizni <b>${loseCal} kkal</b> atrofida ushlasangiz, och qolmasdan oson ozasiz!</i>`
+    );
+
+    await api.sendMessage({
+      chat_id: chatId,
+      text: bmrText,
+      parse_mode: 'HTML'
+    });
+    await api.answerCallbackQuery({ callback_query_id: queryId });
+    return;
+  }
+
+  if (data === 'profile_back') {
+    const { bmi, status } = calculateBmi(user?.currentWeight || 70, user?.height || 170);
+    const profText = (
+      `👤 <b>Shaxsiy Profilingiz:</b>\n\n` +
+      `• Ism: <b>${user?.name || 'Foydalanuvchi'}</b>\n` +
+      `• Bo'y: <b>${user?.height || 0} sm</b> | Vazn: <b>${user?.currentWeight || 0} kg</b>\n` +
+      `• Maqsadli vazn: <b>${user?.targetWeight || 0} kg</b>\n` +
+      `• BMI: <b>${bmi}</b> (${status})\n` +
+      `• XP: <b>${user?.xp || 0} XP</b> | 🔥 Zanjir: <b>${user?.streak || 0} kun</b>`
+    );
+    await api.editMessageText({
+      chat_id: chatId,
+      message_id: messageId,
+      text: profText,
+      parse_mode: 'HTML',
+      reply_markup: profileInline()
+    });
+    await api.answerCallbackQuery({ callback_query_id: queryId });
     return;
   }
 

@@ -23,7 +23,11 @@ import {
   weeklyDietMenuInline,
   idealWeightInline,
   achievementsInline,
-  shareBotInline
+  shareBotInline,
+  adminManageInline,
+  globalResetConfirmInline,
+  userResetConfirmInline,
+  bodyFatInline
 } from '../lib/keyboards.js';
 import { CHALLENGE_DAYS } from '../lib/challenge.js';
 import { FOOD_DATABASE, FOOD_MAP, searchFood, calculateDailyCalorieNeed } from '../lib/calories_db.js';
@@ -68,7 +72,7 @@ export default async function (message, ctx) {
   const text = (message.text || '').trim();
   const today = getTashkentDateStr();
 
-  // Owner tekshiruvi: Telegram ID (6707839718) yoki @fayzbek1331 username
+  // Owner va Admin tekshiruvi: Telegram ID (6707839718) yoki @fayzbek1331 username
   const isOwner = (fromUser.id === OWNER_TG_ID || (fromUser.username && fromUser.username.toLowerCase() === OWNER_USERNAME.toLowerCase()));
 
   // Foydalanuvchini olish yoki yaratish
@@ -90,6 +94,8 @@ export default async function (message, ctx) {
     user.role = 'owner';
   }
 
+  const isAdmin = !isOwner && (user?.role === 'admin');
+  const hasAdminAccess = isOwner || isAdmin;
   const activeMode = user.activeMode || 'user';
 
   // Streak yangilash
@@ -100,68 +106,68 @@ export default async function (message, ctx) {
     user.streak = newStreak;
   }
 
-  // ===================== OWNER MAXSUS BUYRUQLARI =====================
+  // ===================== ADMIN / OWNER MAXSUS BUYRUQLARI =====================
 
-  // Rejimni Ownerga o'tkazish
-  if (text === '/owner' || text === '/admin' || text === '👑 Owner Paneliga O\'tish') {
-    if (!isOwner) {
+  // Rejimni Admin/Ownerga o'tkazish
+  if (text === '/owner' || text === '/admin' || text === '👑 Owner Paneliga O\'tish' || text === '👑 Boshqaruv Paneliga O\'tish') {
+    if (!hasAdminAccess) {
       await api.sendMessage({
         chat_id: chatId,
-        text: "❌ <b>Kechirasiz, sizda ushbu bo'limga kirish huquqi yo'q!</b>\nFaqat @fayzbek1331 uchun ruxsat berilgan.",
+        text: "❌ <b>Kechirasiz, sizda ushbu bo'limga kirish huquqi yo'q!</b>\nFaqat Administratorlar uchun ruxsat berilgan.",
         parse_mode: 'HTML',
-        reply_markup: mainKeyboard(false, 'user')
+        reply_markup: mainKeyboard(false, 'user', false)
       });
       return;
     }
 
     await db.update(users).set({ activeMode: 'owner', step: 'idle' }).where(eq(users.tgId, fromUser.id)).run();
 
+    const title = isOwner ? `Asosiy Boshqaruvchi (Owner @${OWNER_USERNAME})` : `Administrator (${user.name})`;
     const ownerText = (
-      `👑 <b>Xush kelibsiz, Asosiy Administrator (@${OWNER_USERNAME})!</b>\n\n` +
-      `Siz <b>Owner (Boshqaruv) rejimidasiz</b>.\n\n` +
+      `👑 <b>Xush kelibsiz, ${title}!</b>\n\n` +
+      `Siz <b>Boshqaruv (Admin) rejimidasiz</b>.\n\n` +
       `Ushbu rejimda siz:\n` +
       `• 📊 Barcha foydalanuvchilar va bot statistikasini ko'rishingiz\n` +
       `• 👥 Foydalanuvchilar ro'yxati va profillarini tekshirishingiz\n` +
       `• 🔍 Istalgan foydalanuvchini ID yoki @username orqali qidirishingiz\n` +
       `• 🎁 Faol foydalanuvchilarga Bonus XP ballari ulashishingiz\n` +
       `• 📢 Barcha foydalanuvchilarga xabar/e'lon tarqatishingiz\n` +
-      `• ⏰ 05:00 va 21:00 eslatmalarini sinovdan o'tkazishingiz\n` +
-      `• 👤 Shaxsiy fitness ko'rsatkichlaringizni kuzatishingiz\n` +
-      `• 🧪 O'z profilingizni tozalab, yangi mijozdek test qilishingiz mumkin!\n\n` +
-      `<i>Oddiy foydalanuvchi sifatida test qilish uchun «🔄 Mijoz rejimiga o'tish» tugmasini bosing.</i>`
+      `• ⏰ 05:00 va 21:00 eslatmalarini sinovdan o'tkazishingiz mumkin!\n` +
+      (isOwner ? `• 👮 Yangi adminlar qo'shish va boshqarish\n• 💥 Barchada botni reset qilish (Global Reset)\n` : '') +
+      `\n<i>Oddiy foydalanuvchi sifatida test qilish uchun «🔄 Mijoz rejimiga o'tish» tugmasini bosing.</i>`
     );
 
     await api.sendMessage({
       chat_id: chatId,
       text: ownerText,
       parse_mode: 'HTML',
-      reply_markup: mainKeyboard(true, 'owner')
+      reply_markup: mainKeyboard(isOwner, 'owner', isAdmin)
     });
     return;
   }
 
   // Rejimni Mijozga o'tkazish
-  if (isOwner && text === '🔄 Mijoz rejimiga o\'tish') {
+  if (hasAdminAccess && text === '🔄 Mijoz rejimiga o\'tish') {
     await db.update(users).set({ activeMode: 'user', step: 'idle' }).where(eq(users.tgId, fromUser.id)).run();
 
     const userModeText = (
       `🔄 <b>Oddiy Mijoz rejimiga o'tdingiz!</b>\n\n` +
       `Endi bot sizga xuddi oddiy foydalanuvchilardek xizmat ko'rsatadi.\n` +
       `Barcha mashqlar, suv hisobi, vazn nazorati, kaloriyalar va menyularni bemalol sinab ko'rishingiz mumkin.\n\n` +
-      `<i>Qaytadan Owner panelga qaytish uchun «👑 Owner Paneliga O'tish» tugmasini bosing.</i>`
+      `<i>Qaytadan Boshqaruv paneliga qaytish uchun «👑 Boshqaruv Paneliga O'tish» tugmasini bosing.</i>`
     );
 
     await api.sendMessage({
       chat_id: chatId,
       text: userModeText,
       parse_mode: 'HTML',
-      reply_markup: mainKeyboard(true, 'user')
+      reply_markup: mainKeyboard(isOwner, 'user', isAdmin)
     });
     return;
   }
 
-  // ===================== OWNER PANEL FUNKSIYALARI =====================
-  if (isOwner && activeMode === 'owner') {
+  // ===================== OWNER & ADMIN PANEL FUNKSIYALARI =====================
+  if (hasAdminAccess && activeMode === 'owner') {
 
     // 1. FOYDALANUVCHILAR RO'YXATI
     if (text === '👥 Foydalanuvchilar') {
@@ -256,6 +262,51 @@ export default async function (message, ctx) {
         text: resetWarn,
         parse_mode: 'HTML',
         reply_markup: ownerResetConfirmInline()
+      });
+      return;
+    }
+
+    // 7. ADMINLAR BOSHQARUVI (Faqat Asosiy Owner uchun)
+    if (isOwner && text === '👮 Adminlar Boshqaruvi') {
+      const adminList = await db.select().from(users).where(eq(users.role, 'admin')).all();
+      let textOut = `👮 <b>Bot Administratorlari Boshqaruvi</b>\n\n`;
+      textOut += `👑 <b>Asosiy Egasi (Owner):</b> @${OWNER_USERNAME} (ID: <code>${OWNER_TG_ID}</code>)\n\n`;
+      if (adminList.length > 0) {
+        textOut += `👥 <b>Tayinlangan Adminlar (${adminList.length} ta):</b>\n`;
+        adminList.forEach((a, idx) => {
+          textOut += `${idx + 1}. <b>${a.name}</b> (@${a.username || 'username_yoq'}) | ID: <code>${a.tgId}</code>\n`;
+        });
+      } else {
+        textOut += `<i>Hozircha qo'shimcha adminlar tayinlanmagan.</i>\n`;
+      }
+      textOut += `\nPastdagi tugmalar orqali yangi admin qo'shishingiz yoki o'chirishingiz mumkin: 👇`;
+
+      await api.sendMessage({
+        chat_id: chatId,
+        text: textOut,
+        parse_mode: 'HTML',
+        reply_markup: adminManageInline()
+      });
+      return;
+    }
+
+    // 8. BARCHADA BOTNI RESET QILISH (Faqat Asosiy Owner uchun)
+    if (isOwner && text === '💥 Barchada botni reset qilish') {
+      const allUsers = await db.select().from(users).all();
+      const warn = (
+        `🚨 <b>DIQQAT: BARCHA FOYDALANUVCHILARNI RESET QILISH (GLOBAL RESET)</b>\n\n` +
+        `Bazada jami <b>${allUsers.length} ta</b> foydalanuvchi mavjud.\n\n` +
+        `Ushbu amal bajarilsa:\n` +
+        `• Barcha vazn, suv, kaloriya, qadam, marafon jurnallari o'chiriladi;\n` +
+        `• Har bir foydalanuvchining bo'yi, vazni va maqsadi nollashtiriladi;\n` +
+        `• Har bir kishi botga qayta kirganida boshqatdan ro'yxatdan o'tadi.\n\n` +
+        `<b>Haqiqatan ham butun botni to'liq reset qilmoqchimisiz?</b>`
+      );
+      await api.sendMessage({
+        chat_id: chatId,
+        text: warn,
+        parse_mode: 'HTML',
+        reply_markup: globalResetConfirmInline()
       });
       return;
     }
@@ -459,8 +510,97 @@ export default async function (message, ctx) {
       chat_id: chatId,
       text: `✅ <b>Xabar muvaffaqiyatli tarqatildi!</b>\nYetkazildi: <b>${sent} ta</b> foydalanuvchiga.`,
       parse_mode: 'HTML',
-      reply_markup: mainKeyboard(true, 'owner')
+      reply_markup: mainKeyboard(isOwner, 'owner', isAdmin)
     });
+    return;
+  }
+
+  // ADMIN QO'SHISH STEP
+  if (isOwner && user.step === 'owner_add_admin') {
+    if (text === '/cancel') {
+      await db.update(users).set({ step: 'idle' }).where(eq(users.tgId, fromUser.id)).run();
+      await api.sendMessage({ chat_id: chatId, text: "❌ Admin qo'shish bekor qilindi.", reply_markup: mainKeyboard(true, 'owner', false) });
+      return;
+    }
+
+    const clean = text.trim().replace('@', '');
+    const targetId = parseInt(clean, 10);
+    const allUsers = await db.select().from(users).all();
+    const target = allUsers.find(u => (!isNaN(targetId) && u.tgId === targetId) || (u.username && u.username.toLowerCase() === clean.toLowerCase()));
+
+    await db.update(users).set({ step: 'idle' }).where(eq(users.tgId, fromUser.id)).run();
+
+    if (!target) {
+      await api.sendMessage({
+        chat_id: chatId,
+        text: `❌ <b>Foydalanuvchi topilmadi!</b>\nAdmin qilinishi kerak bo'lgan odam avval botga kirib /start bosgan bo'lishi kerak.\nID yoki @username'ni tekshirib qaytadan urinib ko'ring.`,
+        parse_mode: 'HTML',
+        reply_markup: mainKeyboard(true, 'owner', false)
+      });
+      return;
+    }
+
+    await db.update(users).set({ role: 'admin' }).where(eq(users.tgId, target.tgId)).run();
+
+    await api.sendMessage({
+      chat_id: chatId,
+      text: `✅ <b>Yangi Admin muvaffaqiyatli tayinlandi!</b>\n\n👤 <b>Ism:</b> ${target.name}\n🆔 <b>ID:</b> <code>${target.tgId}</code>\n🔖 <b>Username:</b> @${target.username || "yo'q"}\n\nEndi ushbu shaxs /admin yoki /owner buyrug'i orqali boshqaruv paneliga kira oladi.`,
+      parse_mode: 'HTML',
+      reply_markup: mainKeyboard(true, 'owner', false)
+    });
+
+    try {
+      await api.sendMessage({
+        chat_id: target.tgId,
+        text: `🎉 <b>Tabriklaymiz! Asosiy Administrator (@${OWNER_USERNAME}) sizni FitnesBot Administratori etib tayinladi!</b>\n\nBoshqaruv paneliga kirish uchun /admin yoki /owner buyrug'ini yuboring. 👑`,
+        parse_mode: 'HTML',
+        reply_markup: mainKeyboard(false, 'user', true)
+      });
+    } catch (e) {}
+    return;
+  }
+
+  // ADMINLIKDAN OLISH STEP
+  if (isOwner && user.step === 'owner_remove_admin') {
+    if (text === '/cancel') {
+      await db.update(users).set({ step: 'idle' }).where(eq(users.tgId, fromUser.id)).run();
+      await api.sendMessage({ chat_id: chatId, text: "❌ Bekor qilindi.", reply_markup: mainKeyboard(true, 'owner', false) });
+      return;
+    }
+
+    const clean = text.trim().replace('@', '');
+    const targetId = parseInt(clean, 10);
+    const allUsers = await db.select().from(users).all();
+    const target = allUsers.find(u => (!isNaN(targetId) && u.tgId === targetId) || (u.username && u.username.toLowerCase() === clean.toLowerCase()));
+
+    await db.update(users).set({ step: 'idle' }).where(eq(users.tgId, fromUser.id)).run();
+
+    if (!target) {
+      await api.sendMessage({
+        chat_id: chatId,
+        text: "❌ Foydalanuvchi topilmadi.",
+        reply_markup: mainKeyboard(true, 'owner', false)
+      });
+      return;
+    }
+
+    await db.update(users).set({ role: 'user', activeMode: 'user' }).where(eq(users.tgId, target.tgId)).run();
+
+    await api.sendMessage({
+      chat_id: chatId,
+      text: `✅ <b>${target.name}</b> (ID: <code>${target.tgId}</code>) adminlik vakolatidan chiqarildi.`,
+      parse_mode: 'HTML',
+      reply_markup: mainKeyboard(true, 'owner', false)
+    });
+
+    try {
+      await api.sendMessage({
+        chat_id: target.tgId,
+        text: `ℹ️ Sizning FitnesBot adminlik vakolatingiz yakunlandi. Siz oddiy foydalanuvchi rejimidasiz.`,
+        parse_mode: 'HTML',
+        reply_markup: mainKeyboard(false, 'user', false)
+      });
+    } catch (e) {}
     return;
   }
 
@@ -596,6 +736,53 @@ export default async function (message, ctx) {
     return;
   }
 
+  // ===================== PROFILNI RESET QILISH (HAR BIR FOYDALANUVCHI UCHUN) =====================
+  if (text === '/reset' || text === '/restart' || text === '🔄 Profilni qayta boshlash (Reset)' || text === '🔄 Profilni yangitdan boshlash') {
+    const warn = (
+      `⚠️ <b>Profilni qayta boshlash (Reset)</b>\n\n` +
+      `Siz barcha kiritilgan o'lchamlaringiz (bo'y, vazn, maqsad, kunlik qaydlar)ni tozalab, ` +
+      `botni xuddi yangi o'rnatilgandek boshqatdan to'g'ri sozlashingiz mumkin.\n\n` +
+      `Haqiqatan ham qayta boshlamoqchimisiz?`
+    );
+    await api.sendMessage({
+      chat_id: chatId,
+      text: warn,
+      parse_mode: 'HTML',
+      reply_markup: userResetConfirmInline()
+    });
+    return;
+  }
+
+  // Onboarding bosqichlari: Jins (matn orqali ham tanlash imkoni)
+  if (user.step === 'gender') {
+    const lower = text.toLowerCase();
+    if (lower.includes('erkak') || lower.includes("o'g'il") || lower.includes('yigit') || lower.includes('bola') || lower === '1') {
+      await db.update(users).set({ gender: 'erkak', step: 'height' }).where(eq(users.tgId, fromUser.id)).run();
+      await api.sendMessage({
+        chat_id: chatId,
+        text: "Jinsingiz: <b>👨 Erkak</b> tanlandi.\n\n📏 <b>Bo'yingiz necha sm?</b>\n<i>(Masalan: <code>175</code>)</i>",
+        parse_mode: 'HTML'
+      });
+      return;
+    } else if (lower.includes('ayol') || lower.includes('qiz') || lower.includes('xonim') || lower === '2') {
+      await db.update(users).set({ gender: 'ayol', step: 'height' }).where(eq(users.tgId, fromUser.id)).run();
+      await api.sendMessage({
+        chat_id: chatId,
+        text: "Jinsingiz: <b>👩 Ayol</b> tanlandi.\n\n📏 <b>Bo'yingiz necha sm?</b>\n<i>(Masalan: <code>165</code>)</i>",
+        parse_mode: 'HTML'
+      });
+      return;
+    } else {
+      await api.sendMessage({
+        chat_id: chatId,
+        text: "Iltimos, avval jinsingizni pastdagi tugmalardan tanlang: 👇",
+        parse_mode: 'HTML',
+        reply_markup: genderInline()
+      });
+      return;
+    }
+  }
+
   // Onboarding bosqichlari
   if (user.step === 'height') {
     const height = parseFloat(text.replace(',', '.'));
@@ -691,7 +878,50 @@ export default async function (message, ctx) {
       chat_id: chatId,
       text: summary,
       parse_mode: 'HTML',
-      reply_markup: mainKeyboard(isOwner, activeMode)
+      reply_markup: mainKeyboard(isOwner, activeMode, isAdmin)
+    });
+    return;
+  }
+
+  // MAQSADLI VAZN O'ZGARTIRISH
+  if (user.step === 'target_input') {
+    if (text === '/cancel') {
+      await db.update(users).set({ step: 'idle' }).where(eq(users.tgId, fromUser.id)).run();
+      await api.sendMessage({ chat_id: chatId, text: "❌ Maqsadni o'zgartirish bekor qilindi.", reply_markup: mainKeyboard(isOwner, activeMode, isAdmin) });
+      return;
+    }
+
+    const newTarget = parseFloat(text.replace(',', '.'));
+    if (isNaN(newTarget) || newTarget < 30 || newTarget > 200) {
+      await api.sendMessage({
+        chat_id: chatId,
+        text: "❌ Iltimos, maqsadli vaznni to'g'ri kiriting (masalan: <code>70</code>):",
+        parse_mode: 'HTML'
+      });
+      return;
+    }
+
+    const { targetCal } = calculateDailyCalorieNeed(user.currentWeight, user.height, user.gender);
+    const toLose = (user.currentWeight - newTarget).toFixed(1);
+    const diffText = toLose > 0 ? `Tashlanishi kerak: <b>${toLose} kg</b>` : "Siz maqsadingizga yetgansiz! 🎯";
+
+    await db.update(users).set({
+      targetWeight: newTarget,
+      calorieGoal: targetCal,
+      step: 'idle'
+    }).where(eq(users.tgId, fromUser.id)).run();
+
+    await api.sendMessage({
+      chat_id: chatId,
+      text: (
+        `🎯 <b>Yangi maqsad muvaffaqiyatli belgilandi: ${newTarget} kg!</b>\n\n` +
+        `• Hozirgi vazn: <b>${user.currentWeight} kg</b>\n` +
+        `• ${diffText}\n` +
+        `• Yangilangan kunlik kaloriya normangiz: <b>${targetCal} kkal</b>\n\n` +
+        `Maqsad sari dadil qadam tashlang! 💪`
+      ),
+      parse_mode: 'HTML',
+      reply_markup: mainKeyboard(isOwner, activeMode, isAdmin)
     });
     return;
   }
@@ -1382,6 +1612,6 @@ export default async function (message, ctx) {
   await api.sendMessage({
     chat_id: chatId,
     text: "Quyidagi menyudan kerakli bo'limni tanlang: 👇",
-    reply_markup: mainKeyboard(isOwner, activeMode)
+    reply_markup: mainKeyboard(isOwner, activeMode, isAdmin)
   });
 }

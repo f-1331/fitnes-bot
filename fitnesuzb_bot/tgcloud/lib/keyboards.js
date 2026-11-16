@@ -1,27 +1,38 @@
-export function mainKeyboard(isOwner = false, activeMode = 'user') {
-  if (isOwner && activeMode === 'owner') {
-    return {
-      keyboard: [
-        [
-          { text: "📊 Bot Statistikasi" },
-          { text: "👥 Foydalanuvchilar" }
-        ],
-        [
-          { text: "📢 Xabar Yuborish" },
-          { text: "⏰ Eslatmalarni Sinash" }
-        ],
-        [
-          { text: "🔍 Foydalanuvchini Qidirish" },
-          { text: "🎁 Bonus XP Berish" }
-        ],
-        [
-          { text: "👤 Shaxsiy Natijalarim" },
-          { text: "🧪 Test Reset (Profilni tozalash)" }
-        ],
-        [
-          { text: "🔄 Mijoz rejimiga o'tish" }
-        ]
+export function mainKeyboard(isOwner = false, activeMode = 'user', isAdmin = false) {
+  if ((isOwner || isAdmin) && activeMode === 'owner') {
+    const ownerRows = [
+      [
+        { text: "📊 Bot Statistikasi" },
+        { text: "👥 Foydalanuvchilar" }
       ],
+      [
+        { text: "📢 Xabar Yuborish" },
+        { text: "⏰ Eslatmalarni Sinash" }
+      ],
+      [
+        { text: "🔍 Foydalanuvchini Qidirish" },
+        { text: "🎁 Bonus XP Berish" }
+      ]
+    ];
+
+    if (isOwner) {
+      ownerRows.push([
+        { text: "👮 Adminlar Boshqaruvi" },
+        { text: "💥 Barchada botni reset qilish" }
+      ]);
+    }
+
+    ownerRows.push([
+      { text: "👤 Shaxsiy Natijalarim" },
+      { text: "🧪 Test Reset (Profilni tozalash)" }
+    ]);
+
+    ownerRows.push([
+      { text: "🔄 Mijoz rejimiga o'tish" }
+    ]);
+
+    return {
+      keyboard: ownerRows,
       resize_keyboard: true
     };
   }
@@ -59,12 +70,15 @@ export function mainKeyboard(isOwner = false, activeMode = 'user') {
     [
       { text: "👤 Profil & BMI" },
       { text: "👥 Do'stlarni taklif qilish" }
+    ],
+    [
+      { text: "🔄 Profilni qayta boshlash (Reset)" }
     ]
   ];
 
-  // Agar owner bo'lsa, mijoz rejimida turganida ham orqaga qaytish tugmasi chiqadi
-  if (isOwner) {
-    rows.push([{ text: "👑 Owner Paneliga O'tish" }]);
+  // Agar owner yoki admin bo'lsa, mijoz rejimida turganida ham boshqaruvga qaytish tugmasi chiqadi
+  if (isOwner || isAdmin) {
+    rows.push([{ text: "👑 Boshqaruv Paneliga O'tish" }]);
   }
 
   return {
@@ -323,7 +337,15 @@ export function profileInline() {
         { text: "📏 Bo'yni o'zgartirish", callback_data: "height_prompt" }
       ],
       [
-        { text: "📈 Vazn Dinamikasi Grafigi", callback_data: "stat_weight_chart" }
+        { text: "🎯 Maqsadni o'zgartirish", callback_data: "target_prompt" },
+        { text: "📈 Vazn Grafigi", callback_data: "stat_weight_chart" }
+      ],
+      [
+        { text: "🩺 Tana yog'i foizi (Body Fat %)", callback_data: "calc_bodyfat_calc" },
+        { text: "🔥 BMR & Kaloriya normasi", callback_data: "calc_bmr_show" }
+      ],
+      [
+        { text: "🔄 Profilni tozalash & Qayta boshlash", callback_data: "user_reset_ask" }
       ]
     ]
   };
@@ -499,6 +521,45 @@ export function quickTimerInline(seconds) {
         { text: "⏱ 60s", callback_data: "timer_quick_60" }
       ],
       [{ text: "◀️ Mashqlar bo'limiga", callback_data: "wo_back" }]
+    ]
+  };
+}
+
+export function adminManageInline() {
+  return {
+    inline_keyboard: [
+      [{ text: "➕ Yangi Admin qo'shish", callback_data: "admin_add_prompt" }],
+      [{ text: "👥 Adminlar ro'yxati", callback_data: "admin_list_show" }],
+      [{ text: "➖ Adminlikdan chiqarish", callback_data: "admin_remove_prompt" }],
+      [{ text: "◀️ Boshqaruv paneli", callback_data: "admin_back_owner" }]
+    ]
+  };
+}
+
+export function globalResetConfirmInline() {
+  return {
+    inline_keyboard: [
+      [{ text: "🚨 Ha, BARCHA foydalanuvchilarni tozalash (Global Reset)", callback_data: "global_reset_confirm" }],
+      [{ text: "❌ Bekor qilish", callback_data: "global_reset_cancel" }]
+    ]
+  };
+}
+
+export function userResetConfirmInline() {
+  return {
+    inline_keyboard: [
+      [{ text: "🔄 Ha, profilimni qayta boshlash (Reset)", callback_data: "user_reset_confirm" }],
+      [{ text: "❌ Bekor qilish", callback_data: "user_reset_cancel" }]
+    ]
+  };
+}
+
+export function bodyFatInline() {
+  return {
+    inline_keyboard: [
+      [{ text: "📏 Bel aylanmasini kiritish", callback_data: "measure_waist" }],
+      [{ text: "✨ Ideal Vazn Kalkulyatori", callback_data: "calc_ideal_weight" }],
+      [{ text: "👤 Profilga qaytish", callback_data: "profile_back" }]
     ]
   };
 }
