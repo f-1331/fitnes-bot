@@ -4,3 +4,6 @@ apscheduler>=3.10.4
 python-dotenv>=1.0.0
 tzlocal>=5.0
 tzdata
+fastapi>=0.100.0
+uvicorn>=0.23.0
+httpx>=0.24.0

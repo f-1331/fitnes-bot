@@ -30,6 +30,11 @@ yarn-debug.log*
 # Secret Environment Files
 .env
 
+# Cloudflare Tunnel & Failover state
+cloudflared.exe
+tunnel_url.txt
+failover_state.json
+
 # OS and IDE files
 .DS_Store
 Thumbs.db
