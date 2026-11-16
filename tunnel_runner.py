@@ -12,7 +12,7 @@ logger = logging.getLogger("tunnel_runner")
 
 BASE_DIR = Path(__file__).resolve().parent
 
-def get_quick_tunnel(port: int = 8000):
+def get_quick_tunnel(port: int = 8005):
     cf_binary = BASE_DIR / "cloudflared.exe"
     if not cf_binary.exists():
         logger.error(f"cloudflared.exe not found at {cf_binary}")

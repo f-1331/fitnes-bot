@@ -27,7 +27,7 @@ logger = logging.getLogger("ha_failover_watchdog")
 
 RENDER_URL = os.getenv("RENDER_SERVICE_URL", "https://fitnes-bot.onrender.com").rstrip("/")
 RENDER_HEALTH_URL = f"{RENDER_URL}/health"
-LOCAL_HEALTH_URL = "http://127.0.0.1:8000/health"
+LOCAL_HEALTH_URL = f"http://127.0.0.1:{os.getenv('PORT', 8005)}/health"
 OWNER_TELEGRAM_ID = int(os.getenv("OWNER_TELEGRAM_ID", 6707839718))
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8752685286:AAGUTv_lS7tJHKCJ3Q7_WZipPi3NBvx0Vh8")
 CHECK_INTERVAL_SECONDS = 90

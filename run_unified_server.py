@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -26,7 +27,7 @@ logger = logging.getLogger("unified_server")
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = BASE_DIR / "fitnesuzb_bot"
 LOCAL_TZ = ZoneInfo("Asia/Tashkent")
-PORT = int(os.getenv("PORT", 8000))
+PORT = int(os.getenv("PORT", 8005))
 
 app = FastAPI(title="FitnesBot Unified Server")
 
@@ -37,16 +38,19 @@ async def root():
         "service": "FitnesBot Unified Backup Server",
         "status": "running",
         "mode": "local_backup",
+        "port": PORT,
         "timestamp": datetime.now(LOCAL_TZ).isoformat()
     }
 
 
 @app.get("/health")
+@app.get("/api/health")
 async def health():
     return {
         "status": "ok",
         "service": "fitnes-bot",
         "mode": "local_backup",
+        "port": PORT,
         "timestamp": datetime.now(LOCAL_TZ).isoformat()
     }
 
@@ -150,15 +154,12 @@ def start_cloudflared_tunnel(port: int):
     return proc, tunnel_url
 
 
-async def monitor_tunnel(cf_proc):
-    while True:
-        try:
-            line = await asyncio.to_thread(cf_proc.stdout.readline)
-            if not line:
-                break
-        except Exception:
-            break
-        await asyncio.sleep(0.05)
+def drain_pipe(proc):
+    try:
+        for _ in iter(proc.stdout.readline, ''):
+            pass
+    except Exception:
+        pass
 
 
 async def cron_reminder_loop():
@@ -200,7 +201,7 @@ async def main():
     cf_proc, tunnel_url = start_cloudflared_tunnel(PORT)
     if tunnel_url:
         update_vercel_json_and_push(tunnel_url)
-        asyncio.create_task(monitor_tunnel(cf_proc))
+        threading.Thread(target=drain_pipe, args=(cf_proc,), daemon=True).start()
     else:
         logger.warning("Could not establish Cloudflare Tunnel. Continuing with local server only.")
 
