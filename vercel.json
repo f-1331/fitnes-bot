@@ -3,15 +3,15 @@
   "routes": [
     {
       "src": "/health",
-      "dest": "https://mix-surface-expertise-after.trycloudflare.com/health"
+      "dest": "https://twin-entertainment-brain-prot.trycloudflare.com/health"
     },
     {
       "src": "/api/(.*)",
-      "dest": "https://mix-surface-expertise-after.trycloudflare.com/api/$1"
+      "dest": "https://twin-entertainment-brain-prot.trycloudflare.com/api/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "https://mix-surface-expertise-after.trycloudflare.com/$1"
+      "dest": "https://twin-entertainment-brain-prot.trycloudflare.com/$1"
     }
   ]
 }
