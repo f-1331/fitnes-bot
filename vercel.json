@@ -3,15 +3,15 @@
   "routes": [
     {
       "src": "/health",
-      "dest": "https://twin-entertainment-brain-prot.trycloudflare.com/health"
+      "dest": "https://digest-worldwide-anti-aims.trycloudflare.com/health"
     },
     {
       "src": "/api/(.*)",
-      "dest": "https://twin-entertainment-brain-prot.trycloudflare.com/api/$1"
+      "dest": "https://digest-worldwide-anti-aims.trycloudflare.com/api/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "https://twin-entertainment-brain-prot.trycloudflare.com/$1"
+      "dest": "https://digest-worldwide-anti-aims.trycloudflare.com/$1"
     }
   ]
 }
