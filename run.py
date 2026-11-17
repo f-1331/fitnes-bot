@@ -59,6 +59,14 @@ async def main():
     finally:
         logger.info("Bot to'xtatilmoqda...")
         scheduler.shutdown(wait=False)
+        try:
+            await bot.set_webhook(
+                url="https://cloud.telegram.org/app8752685286/webhook",
+                allowed_updates=["message", "callback_query"]
+            )
+            logger.info("TGCloud serverless webhook tiklandi.")
+        except Exception as e:
+            logger.warning(f"Webhook tiklashda xatolik: {e}")
         await bot.session.close()
         logger.info("Bot to'xtatildi.")
 
